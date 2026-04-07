@@ -212,3 +212,5 @@ __marimo__/
 
 # Data
 data/
+
+.DS_Store
