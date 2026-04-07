@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "fairness-jigsaw"
 version = "0.1.0"
@@ -13,3 +17,11 @@ dependencies = [
     "scipy>=1.17.1",
     "seaborn>=0.13.2",
 ]
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fairness_jigsaw*"]
+exclude = ["data*", "notebooks*"]
