@@ -1,0 +1,171 @@
+% Rapport — équité algorithmique, interprétabilité, robustesse (Jigsaw)
+% Références : compiler deux fois — pdflatex rapport_projet_jigsaw.tex && pdflatex rapport_projet_jigsaw.tex
+\documentclass[a4paper,10pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\geometry{margin=2.2cm}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+
+% Espacements compacts
+\setlength{\parskip}{4pt plus 1pt minus 1pt}
+\setlength{\parindent}{1em}
+\makeatletter
+\renewcommand\section{\@startsection{section}{1}{\z@}%
+  {-1.4ex \@plus -0.4ex \@minus -0.2ex}%
+  {0.7ex \@plus 0.2ex}%
+  {\normalfont\large\bfseries}}
+\renewcommand\paragraph{\@startsection{paragraph}{4}{\z@}%
+  {0.5ex \@plus 0.2ex \@minus 0.1ex}%
+  {-0.5em}%
+  {\normalfont\normalsize\bfseries}}
+\makeatother
+
+\title{%
+  \vspace{-1.2em}
+  {\rule{\linewidth}{0.6pt}}\\[0.6em]
+  {\LARGE\bfseries Détection de toxicité sous contraintes d'équité\thanks{Claude Opus a été utilisé pour aider à générer une partie du code et améliorer la rédaction de ce rapport. Le choix des méthodes, la conception des expériences, l'analyse des limites et l'interprétation des résultats ont été réalisés par les auteurs.}}\\[0.4em]
+  {\normalsize\itshape Rapport — Équité algorithmique, interprétabilité et robustesse}\\[0.4em]
+  {\rule{\linewidth}{0.4pt}}\\[-0.4em]
+}
+\author{%
+  \normalsize LATOUNDJI Mourad \quad NGUYEN Constance \quad NGUYEN Le Hoang \quad ZHANG Chengbo \\[0.2em]
+}
+\date{\small\today}
+
+\begin{document}
+\maketitle
+
+\section{Contexte et périmètre}
+
+Classification binaire toxique / non toxique. Nous comparons une \textbf{ToxicityGRU} (baseline) à trois variantes (répondération, adversarial, combiné), avec métriques d'équité sur 18 sous-groupes, \textsc{SHAP} mot à mot, et robustesse sous bruit caractère, dropout de mots et troncature. Les champs d'identité binaires suivent le schéma annoté Jigsaw ; l'EDA met en avant les groupes au biais d'étiquetage le plus marqué.
+
+\section{Protocole}
+
+\paragraph{Données.}
+\texttt{id}, \texttt{target}, \texttt{comment\_text} et indicateurs d'identité depuis \path{data/train.csv} ; \texttt{toxic} dérivé de \texttt{target} au seuil 0,5. Split 80/20 stratifié (\texttt{random\_state=42}), sauvegardé dans \path{data/split_ids.json} pour figer la répartition entre exécutions.
+
+\paragraph{Modèle et encodage.}
+Tokenizer \texttt{bert-base-uncased}, $L=128$. \textbf{ToxicityGRU} (baseline, répondération) ; \textbf{FairGRU} + GRL (\textit{Gradient Reversal}) pour adversarial et combiné.
+
+\paragraph{Hyperparamètres.}
+\texttt{SEED=42}, batch 256, 3 époques, \texttt{LR=1e-3}, \texttt{EMBED\_DIM=64}, \texttt{HIDDEN\_DIM=128} ; adversaire : \texttt{LAMBDA\_ADV=0.5}, \texttt{ADV\_ALPHA=2.0}. Seuil de décision : 0,5. $\lambda_{\text{adv}}$ pondère la perte adversariale dans la perte totale ($\mathcal{L}=\mathcal{L}_{\text{tox}}+\lambda_{\text{adv}}\,\mathcal{L}_{\text{adv}}$) : plus il est grand, plus l'encodeur est poussé à effacer le signal d'identité au prix de la performance de classification.
+
+\paragraph{Métriques.}
+AUC globale, rappel / précision ; équité : BPSN, AUC épinglée, écart FPR, ECE (global et par sous-groupe) ; \textsc{SHAP} : $|\textsc{SHAP}|$ moyen mots d'identité vs autres ; robustesse : AUC sur sous-échantillon de test perturbé.
+
+\section{EDA (synthèse)}
+
+\begin{sloppypar}
+Quatre identités concentrent le biais le plus net (\texttt{black}, \texttt{homosexual\_gay\_or\_lesbian}, \texttt{white}, \texttt{muslim}) : taux toxiques au-dessus de la baseline annotée ($\approx 11{,}4\,\%$), forts écarts de parité, $r$ partiel résiduel $\approx 0{,}11$ à $0{,}16$. L'annoté est $\approx$\textbf{1,4 fois} plus toxique que le corpus brut (sur-échantillonnage). D'autres groupes (\texttt{female}, \texttt{transgender}, etc.) restent dans l'évaluation avec un signal plus faible.
+\end{sloppypar}
+
+\section{Mitigations (méthode)}
+
+\paragraph{Baseline.} Binaire cross-entropy classique, sans pondération ni adversaire.
+
+\paragraph{Répondération.} On donne plus de poids aux exemples des groupes sous-représentés ou sur-toxiques (poids inversement proportionnels au taux toxique par identité, bornés entre 0,1 et 10). L'architecture du modèle est inchangée, seule la perte est repondérée.
+
+\paragraph{Adversarial + GRL.} FairGRU : tête toxicité + discriminateur d'identité ; GRL inverse le gradient vers l'encodeur pour appauvrir la représentation en signal d'identité.
+
+\paragraph{Combiné.} Pondération + objectif adversarial.
+
+\section{Résultats}
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \begin{tabular}{lcccc}
+    \toprule
+    Métrique & Baseline & Répond. & Advers. & Combiné \\
+    \midrule
+    AUC globale & \textbf{0,952} & 0,950 & 0,950 & 0,948 \\
+    AUC BPSN moy. & 0,864 & 0,890 & 0,873 & \textbf{0,899} \\
+    Écart FPR moy. & 0,016 & 0,007 & 0,022 & \textbf{0,003} \\
+    ECE globale & 0,010 & \textbf{0,005} & \textbf{0,005} & 0,006 \\
+    ECE sous-groupe moy. & \textbf{0,056} & 0,067 & 0,058 & 0,087 \\
+    Ratio $|\textsc{SHAP}|$ identité\,/\,autre & 10,3 & 6,3 & 7,8 & \textbf{4,9} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Vue synthétique (arrondis ; meilleur par ligne en gras).}
+  \label{tab:resume}
+\end{table}
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \setlength{\tabcolsep}{2.5pt}
+  \begin{tabular}{p{2.55cm}cccccccc}
+    \toprule
+    & \multicolumn{4}{c}{AUC BPSN} & \multicolumn{4}{c}{Écart FPR} \\
+    \cmidrule(lr){2-5}\cmidrule(lr){6-9}
+    Identité & Bas. & Répond. & Advers. & Comb. & Bas. & Répond. & Advers. & Comb. \\
+    \midrule
+    \path{black} & 0,799 & 0,862 & 0,842 & \textbf{0,894} & 0,041 & 0,007 & 0,037 & \textbf{0,002} \\
+    \texttt{homosexual...} & 0,801 & 0,853 & 0,832 & \textbf{0,877} & 0,044 & 0,016 & 0,053 & \textbf{0,009} \\
+    \path{transgender} & 0,839 & 0,872 & 0,863 & \textbf{0,893} & 0,016 & 0,006 & 0,027 & \textbf{$-0{,}002$} \\
+    \path{muslim} & 0,825 & 0,872 & 0,849 & \textbf{0,890} & 0,031 & 0,007 & 0,032 & \textbf{0,005} \\
+    \path{white} & 0,807 & 0,872 & 0,848 & \textbf{0,901} & 0,037 & 0,005 & 0,031 & \textbf{0,002} \\
+    \path{christian} & \textbf{0,928} & \textbf{0,928} & 0,908 & 0,914 & \textbf{0,000} & 0,001 & 0,005 & $-0{,}001$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Détail par identité : AUC BPSN (colonnes 2--5) et écart FPR (colonnes 6--9 ; proche de 0 favorable). Gras = meilleur dans chaque bloc de quatre valeurs.}
+  \label{tab:detail_id}
+\end{table}
+
+\paragraph{Constats.}
+\textbf{Agrégats (table~\ref{tab:resume}).} Toute mitigation coûte 0,002--0,004 d'AUC globale. La \textbf{répondération} améliore l'équité agrégée à coût minime et reste la plus \textbf{résiliente au bruit caractère}. L'\textbf{adversarial} seul, à $\lambda_{\text{adv}}=0{,}5$ sur trois époques, est \textbf{sous-contraint} : il aggrave l'écart FPR moyen ($>$ baseline) et ne réduit que peu le ratio $|\textsc{SHAP}|$ identité/autre. Le \textbf{combiné} atteint la meilleure équité sous-groupes (BPSN, FPR) et la plus forte chute de la signature identitaire (p.\ ex.\ token \texttt{black} : $0{,}248 \to 0{,}078$).
+
+\textbf{Identités (table~\ref{tab:detail_id}).} Le combiné est meilleur sur 5/6 groupes en BPSN comme en écart FPR ; les gains se concentrent sur les identités les plus biaisées en EDA (\path{black}, \path{white}). L'adversarial seul aggrave le FPR sur \path{homosexual_gay_or_lesbian} et \path{transgender}. Le contrôle \path{christian} reste stable.
+
+\textbf{Robustesse (\ref{app:robustesse}).} Dégradation comparable des quatre variantes ; la répondération domine en bruit caractère modéré, le combiné reste dans la fourchette basse — coût attendu de la double contrainte.
+
+\textbf{Arbitrage.} Le vrai trade-off n'est pas entre BPSN et FPR (le combiné les améliore conjointement) mais entre équité sous-groupes et AUC globale + calibration par sous-groupe : le combiné dégrade l'ECE sous-groupe (0,087 vs 0,056 baseline). On retient donc le combiné pour minimiser FPR/BPSN par identité, la répondération pour un équilibre performance / équité / robustesse.
+
+\section{Limites}
+
+Peu d'époques et $\lambda_{\text{adv}}$ modéré ; GRU sur tokens BERT sans fine-tuning du transformeur ; métriques sensibles à la taille des sous-groupes ; robustesse seulement sur perturbations synthétiques ; \textsc{SHAP} sur petit échantillon, interprétation non causale.
+
+\section{Conclusion}
+
+Sur le sous-ensemble Jigsaw annoté, les quatre identités les plus biaisées en EDA bénéficient principalement du \textbf{combiné}, qui minimise l'écart FPR et la BPSN par sous-groupe tout en atténuant la signature identitaire mesurée par \textsc{SHAP}. La \textbf{répondération} reste le compromis le plus équilibré entre performance, équité globale et robustesse au bruit, alors que l'\textbf{adversarial} seul, sous-contraint à $\lambda_{\text{adv}}=0{,}5$ sur trois époques, dégrade le FPR moyen. Le choix de mitigation doit donc être guidé par la priorité applicative : équité par identité, calibration par sous-groupe ou robustesse aux entrées dégradées.
+
+\clearpage
+\appendix
+\renewcommand{\thesection}{Annexe~\Alph{section}}
+\section{Détail robustesse}
+\label{app:robustesse}
+
+\begin{table}[htbp]
+  \centering
+  \small
+  \setlength{\tabcolsep}{5pt}
+  \begin{tabular}{llcccc}
+    \toprule
+    Perturbation & Niveau & Baseline & Répond. & Advers. & Combiné \\
+    \midrule
+    Bruit caractère & 0,00 & 0,951 & 0,949 & \textbf{0,952} & 0,947 \\
+                    & 0,05 & 0,872 & \textbf{0,895} & 0,875 & 0,876 \\
+                    & 0,10 & \textbf{0,824} & 0,821 & 0,800 & 0,817 \\
+                    & 0,20 & 0,688 & \textbf{0,698} & 0,655 & 0,695 \\
+    \midrule
+    Dropout mots    & 0,0  & 0,951 & 0,949 & \textbf{0,952} & 0,947 \\
+                    & 0,1  & 0,929 & 0,928 & \textbf{0,930} & 0,922 \\
+                    & 0,2  & 0,904 & \textbf{0,922} & 0,916 & 0,908 \\
+                    & 0,3  & \textbf{0,900} & 0,881 & 0,896 & 0,884 \\
+    \midrule
+    Troncature ($L$) & 128 & 0,951 & 0,949 & \textbf{0,952} & 0,947 \\
+                    & 64  & 0,936 & 0,932 & \textbf{0,937} & 0,930 \\
+                    & 32  & 0,905 & 0,897 & \textbf{0,907} & 0,895 \\
+                    & 16  & 0,821 & 0,821 & \textbf{0,828} & 0,826 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Robustesse : AUC sur sous-échantillon de test perturbé. Bruit caractère (probabilité de substitution par caractère), dropout aléatoire de mots, troncature de la séquence ($L$ jetons). Gras = meilleur par ligne.}
+  \label{tab:robustesse}
+\end{table}
+
+\end{document}

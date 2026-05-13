@@ -2,10 +2,10 @@
 
 from .bias import (
     DEFAULT_IDENTITY_COLUMNS,
-    FairnessBiasEvaluator,
+    ModelBiasEvaluator,
 )
 
 __all__ = [
     "DEFAULT_IDENTITY_COLUMNS",
-    "FairnessBiasEvaluator",
+    "ModelBiasEvaluator",
 ]
