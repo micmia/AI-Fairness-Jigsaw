@@ -29,7 +29,7 @@
   \vspace{-1.2em}
   {\rule{\linewidth}{0.6pt}}\\[0.6em]
   {\LARGE\bfseries Détection de toxicité sous contraintes d'équité\thanks{Claude Opus a été utilisé pour aider à générer une partie du code et améliorer la rédaction de ce rapport. Le choix des méthodes, la conception des expériences, l'analyse des limites et l'interprétation des résultats ont été réalisés par les auteurs.}}\\[0.4em]
-  {\normalsize\itshape Rapport — Équité algorithmique, interprétabilité et robustesse}\\[0.4em]
+  {\normalsize Rapport — Équité algorithmique, interprétabilité et robustesse}\\[0.4em]
   {\rule{\linewidth}{0.4pt}}\\[-0.4em]
 }
 \author{%
@@ -42,15 +42,15 @@
 
 \section{Contexte et périmètre}
 
-Classification binaire toxique / non toxique. Nous comparons une \textbf{ToxicityGRU} (baseline) à trois variantes (répondération, adversarial, combiné), avec métriques d'équité sur 18 sous-groupes, \textsc{SHAP} mot à mot, et robustesse sous bruit caractère, dropout de mots et troncature. Les champs d'identité binaires suivent le schéma annoté Jigsaw ; l'EDA met en avant les groupes au biais d'étiquetage le plus marqué.
+Classification binaire toxique / non toxique. Nous comparons une \textbf{ToxicityGRU} (baseline) à trois variantes (répondération, adversarial, combiné), avec métriques d'équité sur 18 sous-groupes, \textsc{SHAP} mot à mot, et robustesse sous bruit caractère, dropout de mots et troncature. Les champs d'identité binaires suivent le schéma annoté Jigsaw ; l'EDA met en avant les groupes au biais d'étiquetage le plus marqué. Pipeline reproductible dans le notebook \path{notebooks/10-final.ipynb} (EDA $\to$ entraînement $\to$ évaluation d'équité $\to$ SHAP $\to$ robustesse).
 
 \section{Protocole}
 
 \paragraph{Données.}
-\texttt{id}, \texttt{target}, \texttt{comment\_text} et indicateurs d'identité depuis \path{data/train.csv} ; \texttt{toxic} dérivé de \texttt{target} au seuil 0,5. Split 80/20 stratifié (\texttt{random\_state=42}), sauvegardé dans \path{data/split_ids.json} pour figer la répartition entre exécutions.
+\texttt{id}, \texttt{target}, \texttt{comment\_text} et indicateurs d'identité depuis \path{data/train.csv} ; \texttt{toxic} dérivé de \texttt{target} au seuil 0,5. Toute l'évaluation d'équité porte sur le sous-ensemble annoté (commentaires dont les champs d'identité sont renseignés, $\approx 25\,\%$ du corpus, sur-échantillonné en toxicité). Split 80/20 stratifié (\texttt{random\_state=42}), sauvegardé dans \path{data/split_ids.json} pour figer la répartition entre exécutions.
 
 \paragraph{Modèle et encodage.}
-Tokenizer \texttt{bert-base-uncased}, $L=128$. \textbf{ToxicityGRU} (baseline, répondération) ; \textbf{FairGRU} + GRL (\textit{Gradient Reversal}) pour adversarial et combiné.
+Tokenizer \texttt{bert-base-uncased}, $L=128$. \textbf{ToxicityGRU} (baseline, répondération) ; \textbf{FairGRU} + GRL (Gradient Reversal) pour adversarial et combiné.
 
 \paragraph{Hyperparamètres.}
 \texttt{SEED=42}, batch 256, 3 époques, \texttt{LR=1e-3}, \texttt{EMBED\_DIM=64}, \texttt{HIDDEN\_DIM=128} ; adversaire : \texttt{LAMBDA\_ADV=0.5}, \texttt{ADV\_ALPHA=2.0}. Seuil de décision : 0,5. $\lambda_{\text{adv}}$ pondère la perte adversariale dans la perte totale ($\mathcal{L}=\mathcal{L}_{\text{tox}}+\lambda_{\text{adv}}\,\mathcal{L}_{\text{adv}}$) : plus il est grand, plus l'encodeur est poussé à effacer le signal d'identité au prix de la performance de classification.
@@ -61,18 +61,18 @@ AUC globale, rappel / précision ; équité : BPSN, AUC épinglée, écart FPR, 
 \section{EDA (synthèse)}
 
 \begin{sloppypar}
-Quatre identités concentrent le biais le plus net (\texttt{black}, \texttt{homosexual\_gay\_or\_lesbian}, \texttt{white}, \texttt{muslim}) : taux toxiques au-dessus de la baseline annotée ($\approx 11{,}4\,\%$), forts écarts de parité, $r$ partiel résiduel $\approx 0{,}11$ à $0{,}16$. L'annoté est $\approx$\textbf{1,4 fois} plus toxique que le corpus brut (sur-échantillonnage). D'autres groupes (\texttt{female}, \texttt{transgender}, etc.) restent dans l'évaluation avec un signal plus faible.
+Quatre identités concentrent le biais le plus net (\texttt{black}, \texttt{homosexual\_gay\_or\_lesbian}, \texttt{white}, \texttt{muslim}) : taux toxiques au-dessus de la baseline annotée ($\approx 11{,}4\,\%$), forts écarts de parité, $r$ partiel résiduel $\approx 0{,}11$ à $0{,}16$. L'annoté est $\approx 1{,}4$ fois plus toxique que le corpus brut (sur-échantillonnage). D'autres groupes (\texttt{female}, \texttt{transgender}, etc.) restent dans l'évaluation avec un signal plus faible.
 \end{sloppypar}
 
 \section{Mitigations (méthode)}
 
-\paragraph{Baseline.} Binaire cross-entropy classique, sans pondération ni adversaire.
+\paragraph{Baseline.} \texttt{ToxicityGRU} (GRU bidirectionnel sur tokens BERT) entraîné par cross-entropy binaire, sans pondération ni adversaire.
 
 \paragraph{Répondération.} On donne plus de poids aux exemples des groupes sous-représentés ou sur-toxiques (poids inversement proportionnels au taux toxique par identité, bornés entre 0,1 et 10). L'architecture du modèle est inchangée, seule la perte est repondérée.
 
-\paragraph{Adversarial + GRL.} FairGRU : tête toxicité + discriminateur d'identité ; GRL inverse le gradient vers l'encodeur pour appauvrir la représentation en signal d'identité.
+\paragraph{Adversarial + GRL (Gradient Reversal Layer).} FairGRU : tête toxicité + discriminateur d'identité ; le GRL inverse le gradient vers l'encodeur pour appauvrir la représentation en signal d'identité.
 
-\paragraph{Combiné.} Pondération + objectif adversarial.
+\paragraph{Combiné.} Répondération + objectif adversarial.
 
 \section{Résultats}
 
@@ -113,7 +113,7 @@ Quatre identités concentrent le biais le plus net (\texttt{black}, \texttt{homo
     \path{christian} & \textbf{0,928} & \textbf{0,928} & 0,908 & 0,914 & \textbf{0,000} & 0,001 & 0,005 & $-0{,}001$ \\
     \bottomrule
   \end{tabular}
-  \caption{Détail par identité : AUC BPSN (colonnes 2--5) et écart FPR (colonnes 6--9 ; proche de 0 favorable). Gras = meilleur dans chaque bloc de quatre valeurs.}
+  \caption{Détail par identité : AUC BPSN (colonnes 2--5) et écart FPR (colonnes 6--9 ; proche de 0 favorable). Gras = meilleur dans chaque bloc de quatre valeurs. \texttt{christian} sert de groupe de contrôle (faible biais d'étiquetage en EDA), attendu stable d'une mitigation à l'autre.}
   \label{tab:detail_id}
 \end{table}
 
@@ -164,7 +164,7 @@ Sur le sous-ensemble Jigsaw annoté, les quatre identités les plus biaisées en
                     & 16  & 0,821 & 0,821 & \textbf{0,828} & 0,826 \\
     \bottomrule
   \end{tabular}
-  \caption{Robustesse : AUC sur sous-échantillon de test perturbé. Bruit caractère (probabilité de substitution par caractère), dropout aléatoire de mots, troncature de la séquence ($L$ jetons). Gras = meilleur par ligne.}
+  \caption{Robustesse : AUC sur sous-échantillon de test perturbé. Bruit caractère (probabilité de substitution par caractère), dropout aléatoire de mots, troncature de la séquence ($L$ tokens). Gras = meilleur par ligne.}
   \label{tab:robustesse}
 \end{table}
 

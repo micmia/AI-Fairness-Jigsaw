@@ -1,5 +1,9 @@
 # projet/AI-Fairness-Jigsaw/
-data/
+data/*
+!data/split_ids.json
+reports/*
+!reports/rapport_projet_jigsaw.tex
+!reports/rapport_projet_jigsaw.pdf
 models/
 
 # Byte-compiled / optimized / DLL files
@@ -214,8 +218,5 @@ __marimo__/
 .cursor/
 .cursorignore
 .cursorindexingignore
-
-# Data
-data/
 
 .DS_Store
