@@ -4,7 +4,7 @@ Toxicity classification on the Jigsaw Unintended Bias dataset with fairness
 mitigation, SHAP interpretability, and robustness analysis.
 
 - **Consolidated notebook:** [`notebooks/10-final.ipynb`](notebooks/10-final.ipynb)
-- **Full report (FR):** `[reports/rapport_projet_jigsaw.pdf](reports/rapport_projet_jigsaw.pdf)`
+- **Full report (FR):** [`reports/rapport_projet_jigsaw.pdf`](reports/rapport_projet_jigsaw.pdf)
 
 A GRU baseline is compared against three mitigation strategies — **reweighting**,
 **adversarial (GRL)**, and a **combined** approach — across 18 identity subgroups,
@@ -12,7 +12,7 @@ plus robustness under character noise, word dropout, and truncation.
 
 ## Quickstart
 
-Requires Python 3.14+. Dependencies are managed with `[uv](https://docs.astral.sh/uv/)`.
+Requires Python 3.14+. Dependencies are managed with [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync
