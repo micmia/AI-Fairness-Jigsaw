@@ -23,7 +23,16 @@
   {0.5ex \@plus 0.2ex \@minus 0.1ex}%
   {-0.5em}%
   {\normalfont\normalsize\bfseries}}
+
+% Pied de page : URL du dépôt à gauche, numéro de page à droite
+\renewcommand{\ps@plain}{%
+  \let\@mkboth\@gobbletwo
+  \let\@oddhead\@empty
+  \def\@oddfoot{\reset@font\footnotesize\href{https://github.com/micmia/AI-Fairness-Jigsaw}{\texttt{github.com/micmia/AI-Fairness-Jigsaw}}\hfil\thepage}%
+  \let\@evenhead\@empty
+  \let\@evenfoot\@oddfoot}
 \makeatother
+\pagestyle{plain}
 
 \title{%
   \vspace{-1.2em}
